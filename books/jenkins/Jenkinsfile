@@ -5,12 +5,11 @@ pipeline {
     }
     agent {
       node {
-      	label 'nodejs'
+        label 'nodejs'
       }
     }
 
     environment {
-        //TODO: Edit these vars as per your env
         DEV_PROJECT = "erick-lopez-books-dev"
         STAGE_PROJECT = "erick-lopez-books-stage"
         APP_GIT_URL = "https://github.com/elopezp/DO288-apps"
@@ -53,14 +52,16 @@ pipeline {
                 echo '### Cleaning existing resources in DEV env ###'
                 sh '''
                         oc project ${DEV_PROJECT}
-			oc new-app --name books nodejs:8~${APP_GIT_URL} \
-			--build-env npm_config_registry=${NEXUS_SERVER} \
-			--context-dir ${APP_NAME}
-                        oc expose svc/${APP_NAME}
+                        oc delete all -l app=${APP_NAME}
+                        sleep 5
                    '''
 
                 echo '### Creating a new app in DEV env ###'
-                //TODO: Create a new app and expose the service
+                sh '''
+                        oc project ${DEV_PROJECT}
+                        oc new-app --name books nodejs:8~${APP_GIT_URL} --build-env npm_config_registry=${NEXUS_SERVER} --context-dir ${APP_NAME}
+                        oc expose svc/${APP_NAME}
+                   '''
             }
         }
 
@@ -102,10 +103,10 @@ pipeline {
                     input message: "Promote to Staging?"
                 }
                 script {
-		    openshift.withCluster() {
-			openshift.tag("${DEV_PROJECT}/books:latest", "${STAGE_PROJECT}/books:stage")
-			}
-		}
+                    openshift.withCluster() {
+                    openshift.tag("${DEV_PROJECT}/books:latest", "${STAGE_PROJECT}/books:stage")
+                    }
+                }
             }
         }
 
@@ -120,11 +121,11 @@ pipeline {
 
                 echo '### Creating a new app in Staging ###'
                 sh '''
-		   oc new-project ${STAGE_PROJECT}
-	           oc new-app --name books -i books:stage
-		   oc expose svc/${APP_NAME}
-		'''
-		}
+                        oc project ${STAGE_PROJECT}
+                        oc new-app --name books -i books:stage
+                        oc expose svc/${APP_NAME}
+                   '''
+            }
         }
 
         stage('Wait for deployment in Staging') {
@@ -141,7 +142,6 @@ pipeline {
                                 return (it.object().status.phase == "Running")
                             }
                         }
-
                         echo "Deployment to Staging env is complete. Access the app at the URL http://${routeHost}."
                     }
                 }
